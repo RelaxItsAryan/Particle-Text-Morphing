@@ -93,43 +93,119 @@ function setupEventListeners() {
 function createTextPoints(text) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    const fontSize = 100;
-    const padding = 20;
-
-    ctx.font = `bold ${fontSize}px Arial`;
-    const textMetrics = ctx.measureText(text);
-    const textWidth = textMetrics.width;
-    const textHeight = fontSize;
-
-    canvas.width = textWidth + padding * 2;
-    canvas.height = textHeight + padding * 2;
-
-    ctx.fillStyle = 'white';
-    ctx.font = `bold ${fontSize}px Arial`;
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'center';
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-
+    
+    const maxCanvasWidth = Math.min(window.innerWidth * 0.88, 750);
+    const maxCanvasHeight = Math.min(window.innerHeight * 0.6, 450); // EVEN TIGHTER
+    const safePadding = 20;
+    
+    const words = text.trim().split(/\s+/);
+    let fontSize = 120;
+    
+    if (words.length > 1) {
+        // Find perfect font size FIRST
+        let bestConfig = { fontSize: 24, lines: [], totalHeight: Infinity };
+        
+        while (fontSize > 20) {
+            ctx.font = `bold ${fontSize}px Arial`;
+            const lines = wrapText(ctx, text, maxCanvasWidth - safePadding * 2);
+            const lineHeight = fontSize * 1.35;
+            const totalHeight = (lines.length * lineHeight) + (safePadding * 3); // EXTRA BOTTOM PADDING
+            
+            if (totalHeight <= maxCanvasHeight * 0.92 && fontSize > bestConfig.fontSize) {
+                bestConfig = { fontSize, lines, totalHeight };
+            }
+            fontSize *= 0.94;
+        }
+        
+        fontSize = bestConfig.fontSize;
+        const lines = bestConfig.lines;
+        
+        // Calculate EXACT height needed
+        const lineHeight = fontSize * 1.35;
+        canvas.width = maxCanvasWidth;
+        canvas.height = Math.max(
+            (lines.length * lineHeight) + (safePadding * 3), 
+            fontSize * 2.5  // Minimum height
+        );
+        
+        // Clear and draw
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic'; // Better baseline
+        
+        // Draw with EXTRA bottom padding
+        lines.forEach((line, i) => {
+            const yPos = safePadding + (i * lineHeight) + fontSize;
+            ctx.fillText(line, canvas.width / 2, yPos);
+        });
+        
+    } else {
+        // SINGLE WORD
+        while (fontSize > 20) {
+            ctx.font = `bold ${fontSize}px Arial`;
+            if (ctx.measureText(text).width <= maxCanvasWidth - safePadding * 2) break;
+            fontSize *= 0.92;
+        }
+        
+        const textWidth = ctx.measureText(text).width;
+        canvas.width = textWidth + safePadding * 2;
+        canvas.height = fontSize * 1.8 + safePadding * 2; 
+        
+        ctx.fillStyle = 'white';
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2 + fontSize / 3);
+    }
+    
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = imageData.data;
     const points = [];
-    const threshold = 128;
-
+    const threshold = 110;
+    
     for (let i = 0; i < pixels.length; i += 4) {
         if (pixels[i] > threshold) {
             const x = (i / 4) % canvas.width;
             const y = Math.floor((i / 4) / canvas.width);
             
-                if (Math.random() < 0.3) {
+            if (Math.random() < 0.32) {
                 points.push({
-                    x: (x - canvas.width / 2) / (fontSize / 10),
-                    y: -(y - canvas.height / 2) / (fontSize / 10)
+                    x: (x - canvas.width / 2) * 0.075,
+                    y: -(y - canvas.height / 2) * 0.075
                 });
             }
         }
     }
-
+    
     return points;
+}
+
+
+function wrapText(ctx, text, maxWidth) {
+    const words = text.split(/\s+/);
+    const lines = [];
+    let currentLine = words[0];
+    
+    for (let i = 1; i < words.length; i++) {
+        const testLine = currentLine + ' ' + words[i];
+        const testWidth = ctx.measureText(testLine).width;
+        
+        if (testWidth <= maxWidth * 0.96) { // 4% safety margin
+            currentLine = testLine;
+        } else {
+            lines.push(currentLine);
+            currentLine = words[i];
+            
+            // Handle very long individual words
+            if (ctx.measureText(currentLine).width > maxWidth * 0.92) {
+                currentLine = currentLine.substring(0, 15) + '…';
+            }
+        }
+    }
+    lines.push(currentLine);
+    return lines;
 }
 
 function morphToText(text) {
@@ -142,7 +218,11 @@ function morphToText(text) {
         x: 0,
         y: 0,
         z: 0,
-        duration: 0.5
+        duration: 0.5,
+        onComplete: () => {
+            // Adjust camera based on text size
+            camera.position.z = Math.max(20, Math.min(40, particles.geometry.boundingSphere?.radius * 1.5 || 25));
+        }
     });
 
     for (let i = 0; i < count; i++) {

@@ -1,5 +1,5 @@
 # Particle Text Morphing – Three.js
-# Website Link - https://aryan-name-particles.netlify.app/
+# Website Link - [Particle Text Morphing](https://particle-text-morphing.vercel.app/)
 
 An interactive Three.js particle animation where thousands of particles smoothly morph between a rotating 3D sphere and custom user‑entered text. The project combines WebGL, GSAP animations, and a modern UI to create a visually engaging experience directly in the browser.
 

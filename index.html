@@ -1,23 +1,55 @@
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Particle Morph // SYSTEM</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.7.1/gsap.min.js"></script>
+</head>
+<body>
     <div id="container"></div>
-    
-    <div class="input-container">
-        <div class="input-wrapper">
-            <input type="text" id="morphText" placeholder="Type something..." maxlength="20">
-            <button id="typeBtn">
-                <span class="button-content">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span>Create</span>
-                </span>
-            </button>
+    <div class="grid-overlay"></div>
+    <div class="cursor-reticle"></div>
+
+    <div class="hud-layer" id="hudLayer">
+        <div class="header-bar">
+            <div class="brand">ORB.OS_ <span style="font-size:0.5em; opacity:0.5">V4.0</span></div>
+            <div class="coords">X: 00.00 | Y: 00.00</div>
+        </div>
+
+        <div class="status-bars">
+            <div class="bar-container">
+                <div class="label">CPU</div>
+                <div class="track"><div class="fill" style="width: 45%"></div></div>
+            </div>
+            <div class="bar-container">
+                <div class="label">MEM</div>
+                <div class="track"><div class="fill" style="width: 72%"></div></div>
+            </div>
+            <div class="bar-container">
+                <div class="label">NET</div>
+                <div class="track"><div class="fill" style="width: 12%"></div></div>
+            </div>
+        </div>
+
+        <div class="system-logs" id="systemLogs">
+            <div class="log-entry">SYSTEM INITIALIZED...</div>
+            <div class="log-entry">WAITING FOR INPUT...</div>
+            <div class="log-entry">CORE STABLE</div>
+        </div>
+    </div>
+
+    <div class="command-center">
+        <div class="input-group">
+            <div class="bracket">[</div>
+            <input type="text" id="morphText" class="input-field" placeholder="ENTER_DATA" autocomplete="off">
+            <div class="bracket">]</div>
+            <button id="typeBtn" class="action-btn">INITIALIZE</button>
         </div>
     </div>
     <script src="script.js"></script>
-
+</body>
+</html>

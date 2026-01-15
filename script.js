@@ -1,49 +1,78 @@
 let scene, camera, renderer, particles;
-const count = 12000;
+const count = 22000; 
 let currentState = 'sphere';
+let time = 0;
+
+// Mouse & HUD Data
+const mouse = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+const hudLayer = document.getElementById('hudLayer');
+const coordDisplay = document.querySelector('.coords');
+const reticle = document.querySelector('.cursor-reticle');
+const systemLogs = document.getElementById('systemLogs');
+
+// Animation State
+let morphData = { val: 0, explosion: 0 };
+
+// Fake Log Data
+const logMessages = [
+    "CALCULATING TRAJECTORY...", "UPDATING MESH...", "OPTIMIZING V-SYNC...", 
+    "BUFFERING DATA...", "PACKET RECEIVED...", "CORE TEMP: NORMAL", 
+    "SCANNING SECTOR 7...", "MEMORY ALLOCATED..."
+];
 
 function init() {
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x000000);
-    document.getElementById('container').appendChild(renderer.domElement);
+    camera.position.z = 28; 
 
-    camera.position.z = 25;
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x000000); 
+    document.getElementById('container').appendChild(renderer.domElement);
 
     createParticles();
     setupEventListeners();
     animate();
 }
 
+// ... [insert createParticles, createTextTargets, morphToText, morphToSphere functions from previous step] ...
+// (These functions remain IDENTICAL to the optimized version I gave you in the last step. 
+//  For brevity, I will focus on the NEW logic below, but you need the particle logic here)
+
 function createParticles() {
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
-
-    function sphericalDistribution(i) {
-        const phi = Math.acos(-1 + (2 * i) / count);
-        const theta = Math.sqrt(count * Math.PI) * phi;
-        
-        return {
-            x: 8 * Math.cos(theta) * Math.sin(phi),
-            y: 8 * Math.sin(theta) * Math.sin(phi),
-            z: 8 * Math.cos(phi)
-        };
-    }
+    const spherePos = new Float32Array(count * 3);
+    const textPos = new Float32Array(count * 3); 
+    const randoms = new Float32Array(count); 
+    const normals = new Float32Array(count * 3);
+    const radius = 11; 
 
     for (let i = 0; i < count; i++) {
-        const point = sphericalDistribution(i);
+        const phi = Math.acos(1 - 2 * (i + 0.5) / count);
+        const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+        const x = radius * Math.sin(phi) * Math.cos(theta);
+        const y = radius * Math.sin(phi) * Math.sin(theta);
+        const z = radius * Math.cos(phi);
         
-        positions[i * 3] = point.x + (Math.random() - 0.5) * 0.5;
-        positions[i * 3 + 1] = point.y + (Math.random() - 0.5) * 0.5;
-        positions[i * 3 + 2] = point.z + (Math.random() - 0.5) * 0.5;
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+        spherePos[i * 3] = x;
+        spherePos[i * 3 + 1] = y;
+        spherePos[i * 3 + 2] = z;
+        normals[i * 3] = x / radius;
+        normals[i * 3 + 1] = y / radius;
+        normals[i * 3 + 2] = z / radius;
+        randoms[i] = Math.random();
 
         const color = new THREE.Color();
-        const depth = Math.sqrt(point.x * point.x + point.y * point.y + point.z * point.z) / 8;
-        color.setHSL(0.5 + depth * 0.2, 0.7, 0.4 + depth * 0.3);
-
+        const normalizedY = (y + radius) / (radius * 2);
+        color.setHSL(0.04 + (normalizedY * 0.02), 1.0, 0.3 + (normalizedY * 0.4));
         colors[i * 3] = color.r;
         colors[i * 3 + 1] = color.g;
         colors[i * 3 + 2] = color.b;
@@ -51,286 +80,245 @@ function createParticles() {
 
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('spherePos', new THREE.BufferAttribute(spherePos, 3));
+    geometry.setAttribute('textPos', new THREE.BufferAttribute(textPos, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    geometry.setAttribute('rnd', new THREE.BufferAttribute(randoms, 1));
 
     const material = new THREE.PointsMaterial({
-        size: 0.08,
+        size: 0.12,
         vertexColors: true,
         blending: THREE.AdditiveBlending,
         transparent: true,
-        opacity: 0.8,
-        sizeAttenuation: true
+        opacity: 0.9,
+        sizeAttenuation: true,
+        depthWrite: false
     });
 
-    if (particles) scene.remove(particles);
     particles = new THREE.Points(geometry, material);
-    particles.rotation.x = 0;
-    particles.rotation.y = 0;
-    particles.rotation.z = 0;
     scene.add(particles);
 }
 
-function setupEventListeners() {
-    const typeBtn = document.getElementById('typeBtn');
-    const input = document.getElementById('morphText');
-
-    typeBtn.addEventListener('click', () => {
-        const text = input.value.trim();
-        if (text) {
-            morphToText(text);
-        }
-    });
-
-    input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            const text = input.value.trim();
-            if (text) {
-                morphToText(text);
-            }
-        }
-    });
-}
-
-function createTextPoints(text) {
+function createTextTargets(text) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
+    const width = 1600; 
+    const height = 600;
     
-    const maxCanvasWidth = Math.min(window.innerWidth * 0.88, 750);
-    const maxCanvasHeight = Math.min(window.innerHeight * 0.6, 450); // EVEN TIGHTER
-    const safePadding = 20;
+    canvas.width = width;
+    canvas.height = height;
     
-    const words = text.trim().split(/\s+/);
-    let fontSize = 120;
+    let fontSize = 300;
+    ctx.font = `900 ${fontSize}px Arial`;
     
-    if (words.length > 1) {
-        // Find perfect font size FIRST
-        let bestConfig = { fontSize: 24, lines: [], totalHeight: Infinity };
-        
-        while (fontSize > 20) {
-            ctx.font = `bold ${fontSize}px Arial`;
-            const lines = wrapText(ctx, text, maxCanvasWidth - safePadding * 2);
-            const lineHeight = fontSize * 1.35;
-            const totalHeight = (lines.length * lineHeight) + (safePadding * 3); // EXTRA BOTTOM PADDING
-            
-            if (totalHeight <= maxCanvasHeight * 0.92 && fontSize > bestConfig.fontSize) {
-                bestConfig = { fontSize, lines, totalHeight };
-            }
-            fontSize *= 0.94;
-        }
-        
-        fontSize = bestConfig.fontSize;
-        const lines = bestConfig.lines;
-        
-        // Calculate EXACT height needed
-        const lineHeight = fontSize * 1.35;
-        canvas.width = maxCanvasWidth;
-        canvas.height = Math.max(
-            (lines.length * lineHeight) + (safePadding * 3), 
-            fontSize * 2.5  // Minimum height
-        );
-        
-        // Clear and draw
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'white';
-        ctx.font = `bold ${fontSize}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic'; // Better baseline
-        
-        // Draw with EXTRA bottom padding
-        lines.forEach((line, i) => {
-            const yPos = safePadding + (i * lineHeight) + fontSize;
-            ctx.fillText(line, canvas.width / 2, yPos);
-        });
-        
-    } else {
-        // SINGLE WORD
-        while (fontSize > 20) {
-            ctx.font = `bold ${fontSize}px Arial`;
-            if (ctx.measureText(text).width <= maxCanvasWidth - safePadding * 2) break;
-            fontSize *= 0.92;
-        }
-        
-        const textWidth = ctx.measureText(text).width;
-        canvas.width = textWidth + safePadding * 2;
-        canvas.height = fontSize * 1.8 + safePadding * 2; 
-        
-        ctx.fillStyle = 'white';
-        ctx.font = `bold ${fontSize}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillText(text, canvas.width / 2, canvas.height / 2 + fontSize / 3);
+    while(ctx.measureText(text).width > width * 0.8) {
+        fontSize -= 10;
+        ctx.font = `900 ${fontSize}px Arial`;
     }
     
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = imageData.data;
-    const points = [];
-    const threshold = 110;
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, width/2, height/2);
     
-    for (let i = 0; i < pixels.length; i += 4) {
-        if (pixels[i] > threshold) {
-            const x = (i / 4) % canvas.width;
-            const y = Math.floor((i / 4) / canvas.width);
-            
-            if (Math.random() < 0.32) {
-                points.push({
-                    x: (x - canvas.width / 2) * 0.075,
-                    y: -(y - canvas.height / 2) * 0.075
+    const data = ctx.getImageData(0,0, width, height).data;
+    const validPoints = [];
+    
+    for(let i=0; i<data.length; i+=4) {
+        if(data[i] > 128) { 
+            if(Math.random() < 0.22) { 
+                const x = (i/4) % width;
+                const y = Math.floor((i/4) / width);
+                validPoints.push({
+                    x: (x - width/2) * 0.05,
+                    y: -(y - height/2) * 0.05
                 });
             }
         }
     }
     
-    return points;
-}
-
-
-function wrapText(ctx, text, maxWidth) {
-    const words = text.split(/\s+/);
-    const lines = [];
-    let currentLine = words[0];
+    const attr = particles.geometry.attributes.textPos;
+    const count = attr.count;
     
-    for (let i = 1; i < words.length; i++) {
-        const testLine = currentLine + ' ' + words[i];
-        const testWidth = ctx.measureText(testLine).width;
-        
-        if (testWidth <= maxWidth * 0.96) { // 4% safety margin
-            currentLine = testLine;
+    for(let i=0; i<count; i++) {
+        if(i < validPoints.length) {
+            attr.setXYZ(i, validPoints[i].x, validPoints[i].y, 0);
         } else {
-            lines.push(currentLine);
-            currentLine = words[i];
-            
-            // Handle very long individual words
-            if (ctx.measureText(currentLine).width > maxWidth * 0.92) {
-                currentLine = currentLine.substring(0, 15) + '…';
-            }
+            const angle = Math.random() * Math.PI * 2;
+            const r = 20 + Math.random() * 30;
+            attr.setXYZ(i, Math.cos(angle)*r, Math.sin(angle)*r, (Math.random()-0.5)*20);
         }
     }
-    lines.push(currentLine);
-    return lines;
+    attr.needsUpdate = true;
 }
 
 function morphToText(text) {
-    currentState = 'text';
-    const textPoints = createTextPoints(text);
-    const positions = particles.geometry.attributes.position.array;
-    const targetPositions = new Float32Array(count * 3);
+    if(!text || currentState === 'transition') return;
+    currentState = 'transition';
+    createTextTargets(text);
+    addLog(`EXECUTING: ${text}`);
 
-    gsap.to(particles.rotation, {
-        x: 0,
-        y: 0,
-        z: 0,
-        duration: 0.5,
-        onComplete: () => {
-            // Adjust camera based on text size
-            camera.position.z = Math.max(20, Math.min(40, particles.geometry.boundingSphere?.radius * 1.5 || 25));
-        }
-    });
-
-    for (let i = 0; i < count; i++) {
-        if (i < textPoints.length) {
-            targetPositions[i * 3] = textPoints[i].x;
-            targetPositions[i * 3 + 1] = textPoints[i].y;
-            targetPositions[i * 3 + 2] = 0;
-        } else {
-            const angle = Math.random() * Math.PI * 2;
-            const radius = Math.random() * 20 + 10;
-            targetPositions[i * 3] = Math.cos(angle) * radius;
-            targetPositions[i * 3 + 1] = Math.sin(angle) * radius;
-            targetPositions[i * 3 + 2] = (Math.random() - 0.5) * 10;
-        }
-    }
-
-    for (let i = 0; i < positions.length; i += 3) {
-        gsap.to(particles.geometry.attributes.position.array, {
-            [i]: targetPositions[i],
-            [i + 1]: targetPositions[i + 1],
-            [i + 2]: targetPositions[i + 2],
-            duration: 2,
-            ease: "power2.inOut",
-            onUpdate: () => {
-                particles.geometry.attributes.position.needsUpdate = true;
-            }
-        });
-    }
-
-    setTimeout(() => {
-        morphToCircle();
-    }, 4000);
+    const tl = gsap.timeline({ onComplete: () => { currentState = 'text'; } });
+    tl.to(morphData, { explosion: 15, duration: 0.8, ease: "power2.out" });
+    tl.to(morphData, { val: 1, explosion: 0, duration: 1.2, ease: "power4.out" });
+    gsap.to(camera.position, { z: 40, duration: 2 });
+    setTimeout(() => { morphToSphere(); }, 5000);
 }
 
-function morphToCircle() {
-    currentState = 'sphere';
-    const positions = particles.geometry.attributes.position.array;
-    const targetPositions = new Float32Array(count * 3);
-    const colors = particles.geometry.attributes.color.array;
+function morphToSphere() {
+    currentState = 'transition';
+    addLog("RESETTING CORE...");
+    const tl = gsap.timeline({ onComplete: () => { currentState = 'sphere'; } });
+    tl.to(morphData, { val: 0, duration: 2.5, ease: "power2.inOut" });
+    gsap.to(camera.position, { z: 28, duration: 2.5 });
+}
 
-    function sphericalDistribution(i) {
-        const phi = Math.acos(-1 + (2 * i) / count);
-        const theta = Math.sqrt(count * Math.PI) * phi;
-        
-        return {
-            x: 8 * Math.cos(theta) * Math.sin(phi),
-            y: 8 * Math.sin(theta) * Math.sin(phi),
-            z: 8 * Math.cos(phi)
-        };
-    }
+// --- NEW: HUD LOGIC ---
+function updateHUD() {
+    // 1. Update Coords in Top Right
+    const mx = (mouse.x * 100).toFixed(2);
+    const my = (mouse.y * 100).toFixed(2);
+    coordDisplay.innerText = `X: ${mx} | Y: ${my}`;
 
-    for (let i = 0; i < count; i++) {
-        const point = sphericalDistribution(i);
-        
-        targetPositions[i * 3] = point.x + (Math.random() - 0.5) * 0.5;
-        targetPositions[i * 3 + 1] = point.y + (Math.random() - 0.5) * 0.5;
-        targetPositions[i * 3 + 2] = point.z + (Math.random() - 0.5) * 0.5;
-
-        const depth = Math.sqrt(point.x * point.x + point.y * point.y + point.z * point.z) / 8;
-        const color = new THREE.Color();
-        color.setHSL(0.5 + depth * 0.2, 0.7, 0.4 + depth * 0.3);
-        
-        colors[i * 3] = color.r;
-        colors[i * 3 + 1] = color.g;
-        colors[i * 3 + 2] = color.b;
-    }
-
-    for (let i = 0; i < positions.length; i += 3) {
-        gsap.to(particles.geometry.attributes.position.array, {
-            [i]: targetPositions[i],
-            [i + 1]: targetPositions[i + 1],
-            [i + 2]: targetPositions[i + 2],
-            duration: 2,
-            ease: "power2.inOut",
-            onUpdate: () => {
-                particles.geometry.attributes.position.needsUpdate = true;
-            }
+    // 2. Randomly Twitch Bars (Left Side)
+    if(Math.random() > 0.95) {
+        const bars = document.querySelectorAll('.fill');
+        bars.forEach(bar => {
+            bar.style.width = Math.random() * 100 + "%";
         });
     }
 
-    for (let i = 0; i < colors.length; i += 3) {
-        gsap.to(particles.geometry.attributes.color.array, {
-            [i]: colors[i],
-            [i + 1]: colors[i + 1],
-            [i + 2]: colors[i + 2],
-            duration: 2,
-            ease: "power2.inOut",
-            onUpdate: () => {
-                particles.geometry.attributes.color.needsUpdate = true;
-            }
-        });
+    // 3. Random Log Injection (Right Side)
+    if(Math.random() > 0.99) {
+        const msg = logMessages[Math.floor(Math.random() * logMessages.length)];
+        addLog(msg);
     }
+}
+
+function addLog(msg) {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerText = `> ${msg}`;
+    systemLogs.prepend(div);
+    if(systemLogs.children.length > 6) systemLogs.lastChild.remove();
 }
 
 function animate() {
     requestAnimationFrame(animate);
+    time += 0.015;
+
+    updateHUD();
+
+    if (!particles) return;
+
+    const positions = particles.geometry.attributes.position;
+    const spherePos = particles.geometry.attributes.spherePos;
+    const textPos = particles.geometry.attributes.textPos;
+    const normals = particles.geometry.attributes.normal;
+    const rnd = particles.geometry.attributes.rnd;
+    const val = morphData.val;
+    const exp = morphData.explosion;
+
+    // Raycast for interaction
+    raycaster.setFromCamera(mouse, camera);
+    const intersect = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, intersect);
+
+    for (let i = 0; i < count; i++) {
+        const sx = spherePos.getX(i);
+        const sy = spherePos.getY(i);
+        const sz = spherePos.getZ(i);
+        const layer = rnd.getX(i);
+        const speed = 0.5 + (layer * 0.5);
+        const angle = time * speed;
+
+        const rotX = sx * Math.cos(angle) - sz * Math.sin(angle);
+        const rotZ = sx * Math.sin(angle) + sz * Math.cos(angle);
+        const rotY = sy;
+
+        let jx=0, jy=0, jz=0;
+        if (currentState === 'sphere') {
+            const wave = Math.sin(rotY * 0.5 - time * 3);
+            if (wave > 0.8) { jx = (Math.random()-0.5)*0.1; jy = (Math.random()-0.5)*0.1; jz = (Math.random()-0.5)*0.1; }
+        }
+
+        const tx = textPos.getX(i);
+        const ty = textPos.getY(i);
+        const tz = textPos.getZ(i);
+
+        const nx = normals.getX(i); const ny = normals.getY(i); const nz = normals.getZ(i);
+        const nRotX = nx * Math.cos(angle) - nz * Math.sin(angle);
+        const nRotZ = nx * Math.sin(angle) + nz * Math.cos(angle);
+        const nRotY = ny;
+
+        let cx = (rotX + jx) + (tx - (rotX + jx)) * val;
+        let cy = (rotY + jy) + (ty - (rotY + jy)) * val;
+        let cz = (rotZ + jz) + (tz - (rotZ + jz)) * val;
+
+        cx += nRotX * exp; cy += nRotY * exp; cz += nRotZ * exp;
+
+        // Interaction
+        if (val < 0.1) {
+            const dx = cx - intersect.x; const dy = cy - intersect.y;
+            const distSq = dx*dx + dy*dy;
+            if (distSq < 25) {
+                const dist = Math.sqrt(distSq);
+                const force = (5 - dist) / 5;
+                cx += (dx / dist) * force * 2;
+                cy += (dy / dist) * force * 2;
+                cz += force * 3;
+            }
+        }
+        positions.setXYZ(i, cx, cy, cz);
+    }
+
+    positions.needsUpdate = true;
     
     if (currentState === 'sphere') {
+        particles.rotation.z = Math.sin(time * 0.1) * 0.05;
         particles.rotation.y += 0.002;
+    } else {
+        particles.rotation.y = 0; particles.rotation.z = 0;
     }
-    
+
     renderer.render(scene, camera);
 }
 
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
+function setupEventListeners() {
+    const btn = document.getElementById('typeBtn');
+    const inp = document.getElementById('morphText');
+    
+    function trigger() {
+        const text = inp.value.trim();
+        if(text) morphToText(text);
+    }
+    
+    btn.addEventListener('click', trigger);
+    inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') trigger(); });
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        
+        // Custom Cursor movement
+        reticle.style.left = e.clientX + 'px';
+        reticle.style.top = e.clientY + 'px';
+
+        // Parallax Effect on HUD
+        // We move the HUD slightly opposite to the mouse
+        const xOffset = (e.clientX - window.innerWidth / 2) * -0.02;
+        const yOffset = (e.clientY - window.innerHeight / 2) * -0.02;
+        hudLayer.style.transform = `translate(${xOffset}px, ${yOffset}px)`;
+    });
+    
+    window.addEventListener('mousedown', () => reticle.classList.add('active'));
+    window.addEventListener('mouseup', () => reticle.classList.remove('active'));
+}
 
 init();

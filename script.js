@@ -2,6 +2,7 @@ let scene, camera, renderer, particles;
 const count = 22000; 
 let currentState = 'sphere';
 let time = 0;
+let currentTheme = 'dark';
 
 // Mouse & HUD Data
 const mouse = new THREE.Vector2();
@@ -35,7 +36,61 @@ function init() {
 
     createParticles();
     setupEventListeners();
+    loadTheme();
     animate();
+}
+
+// --- THEME SWITCHING ---
+function loadTheme() {
+    const saved = localStorage.getItem('theme') || 'dark';
+    applyTheme(saved);
+}
+
+function applyTheme(theme) {
+    currentTheme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+
+    if (renderer) {
+        const bgColor = theme === 'light' ? 0xf0f0f0 : 0x000000;
+        renderer.setClearColor(bgColor);
+    }
+
+    if (particles) {
+        updateParticleColors(theme);
+    }
+}
+
+function toggleTheme() {
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(newTheme);
+    addLog(newTheme === 'light' ? 'LIGHT MODE ENGAGED' : 'DARK MODE ENGAGED');
+}
+
+function updateParticleColors(theme) {
+    const colors = particles.geometry.attributes.color;
+    const spherePos = particles.geometry.attributes.spherePos;
+    const radius = 11;
+
+    for (let i = 0; i < count; i++) {
+        const y = spherePos.getY(i);
+        const color = new THREE.Color();
+        const normalizedY = (y + radius) / (radius * 2);
+
+        if (theme === 'light') {
+            color.setHSL(0.04 + (normalizedY * 0.02), 0.9, 0.25 + (normalizedY * 0.2));
+        } else {
+            color.setHSL(0.04 + (normalizedY * 0.02), 1.0, 0.3 + (normalizedY * 0.4));
+        }
+
+        colors.setXYZ(i, color.r, color.g, color.b);
+    }
+    colors.needsUpdate = true;
+
+    // Adjust blending mode
+    particles.material.blending = theme === 'light' ? THREE.NormalBlending : THREE.AdditiveBlending;
+    particles.material.opacity = theme === 'light' ? 1.0 : 0.9;
+    particles.material.needsUpdate = true;
 }
 
 // ... [insert createParticles, createTextTargets, morphToText, morphToSphere functions from previous step] ...
@@ -287,6 +342,7 @@ function animate() {
 function setupEventListeners() {
     const btn = document.getElementById('typeBtn');
     const inp = document.getElementById('morphText');
+    const themeBtn = document.getElementById('themeToggle');
     
     function trigger() {
         const text = inp.value.trim();
@@ -295,6 +351,7 @@ function setupEventListeners() {
     
     btn.addEventListener('click', trigger);
     inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') trigger(); });
+    themeBtn.addEventListener('click', toggleTheme);
 
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
